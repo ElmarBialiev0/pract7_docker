@@ -1,126 +1,133 @@
 from django.http import HttpResponse
-from django.views.generic import ListView, CreateView, UpdateView, DeleteView, DetailView
-
+from django.views.generic import (
+    ListView, CreateView, UpdateView, DeleteView, DetailView
+)
 from django.urls import reverse_lazy
-from django.shortcuts import get_object_or_404
 from django_filters.views import FilterView
+from django.shortcuts import render, redirect
+from django.contrib import messages
+from django.contrib.auth import authenticate, login
 
-from .filters import CarFilter, RoleFilter, DriverLicenseFilter, UserFilter, ParkingAddressFilter, StatusFilter, \
-    NotificationFilter, BookingFilter, ServiceFilter, InspectionCarFilter
-from .forms import ParkingAddressForm, StatusForm, CarForm, ServiceForm, CustomUserCreationForm
+from rest_framework import viewsets, status, generics
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+
+from .filters import (
+    CarFilter, RoleFilter, DriverLicenseFilter, UserFilter,
+    ParkingAddressFilter, StatusFilter, NotificationFilter,
+    BookingFilter, ServiceFilter
+)
+from .forms import (
+    ParkingAddressForm, StatusForm, CarForm, ServiceForm,
+    CustomAuthenticationForm
+)
 from .models import (
     Role, DriverLicense, User, Notification, ParkingAddress,
-    Status, Car, Booking, Service, InspectionCar
+    Status, Car, Booking, Service, InspectionCar, CustomUser
 )
-from django.shortcuts import render, redirect
-from .models import Role
-import csv
-from rest_framework import generics, viewsets
-from .models import Car
-from .serializers import CarSerializer
-from rest_framework import viewsets
-from .models import Car, ParkingAddress, Status
-from .serializers import CarSerializer, ParkingAddressSerializer, StatusSerializer
-from rest_framework.response import Response
-from rest_framework.decorators import api_view
-from rest_framework import status
-from rest_framework.authtoken.models import Token
-from .serializers import RegisterSerializer, LoginSerializer
-from django.contrib.auth import authenticate, login
-from django.shortcuts import render, redirect
-from .forms import CustomAuthenticationForm
-from django.contrib import messages
-# Регистрация пользователя
-from rest_framework import status
-from rest_framework.response import Response
-from rest_framework.decorators import api_view
-from django.contrib.auth import authenticate, login
-from .models import CustomUser
-from .serializers import CustomUserSerializer
+from .serializers import (
+    CarSerializer, ParkingAddressSerializer,
+    StatusSerializer, CustomUserSerializer
+)
 
 
 def car_list_view(request):
-    cars = Car.objects.all()  # Все автомобили
+    cars = Car.objects.all()
     context = {
         'cars': cars,
     }
     return render(request, 'car_list.html', context)
 
+
 def filtered_car_list_view(request):
     cars = Car.objects.all()
-    car_filter = CarFilter(request.GET, queryset=cars)  # Фильтрация по запросу
-    filtered_cars = car_filter.qs  # Получаем отфильтрованные данные
+    car_filter = CarFilter(request.GET, queryset=cars)
     context = {
-        'filtered_cars': filtered_cars,
+        'filtered_cars': car_filter.qs,
     }
     return render(request, 'filtered_cars_list.html', context)
 
+
 class RoleListView(FilterView):
     model = Role
-    filterset_class = RoleFilter  # подключаем фильтр для модели Role
+    filterset_class = RoleFilter
     template_name = 'generic_list.html'
     context_object_name = 'roles'
     paginate_by = 10
 
+
 class DriverLicenseListView(FilterView):
     model = DriverLicense
-    filterset_class = DriverLicenseFilter  # подключаем фильтр для модели DriverLicense
+    filterset_class = DriverLicenseFilter
     template_name = 'driver_license_list.html'
     context_object_name = 'licenses'
     paginate_by = 10
 
+
 class UserListView(FilterView):
     model = User
-    filterset_class = UserFilter  # подключаем фильтр для модели User
+    filterset_class = UserFilter
     template_name = 'user_list.html'
     context_object_name = 'users'
     paginate_by = 10
 
+
 class ParkingAddressListView(FilterView):
     model = ParkingAddress
-    filterset_class = ParkingAddressFilter  # подключаем фильтр для модели ParkingAddress
+    filterset_class = ParkingAddressFilter
     template_name = 'parking_address_list.html'
     context_object_name = 'parking_addresses'
     paginate_by = 10
 
+
 class StatusListView(FilterView):
     model = Status
-    filterset_class = StatusFilter  # подключаем фильтр для модели Status
+    filterset_class = StatusFilter
     template_name = 'status_list.html'
     context_object_name = 'statuses'
     paginate_by = 10
 
+
 class NotificationListView(FilterView):
     model = Notification
-    filterset_class = NotificationFilter  # подключаем фильтр для модели Notification
+    filterset_class = NotificationFilter
     template_name = 'notification_list.html'
     context_object_name = 'notifications'
     paginate_by = 10
 
+
 class BookingListView(FilterView):
     model = Booking
-    filterset_class = BookingFilter  # подключаем фильтр для модели Booking
+    filterset_class = BookingFilter
     template_name = 'booking_list.html'
     context_object_name = 'bookings'
     paginate_by = 10
 
+
 class ServiceListView(FilterView):
     model = Service
-    filterset_class = ServiceFilter  # подключаем фильтр для модели Service
+    filterset_class = ServiceFilter
     template_name = 'service_list.html'
     context_object_name = 'services'
     paginate_by = 10
+
 
 @api_view(['POST'])
 def register(request):
     if request.method == 'POST':
         serializer = CustomUserSerializer(data=request.data)
         if serializer.is_valid():
-            user = serializer.save()
-            return Response({"message": "User registered successfully"}, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            serializer.save()
+            return Response(
+                {"message": "User registered successfully"},
+                status=status.HTTP_201_CREATED
+            )
+        return Response(
+            serializer.errors,
+            status=status.HTTP_400_BAD_REQUEST
+        )
 
-# Авторизация пользователя
+
 @api_view(['POST'])
 def login_user(request):
     if request.method == 'POST':
@@ -129,18 +136,23 @@ def login_user(request):
         user = authenticate(username=username, password=password)
         if user is not None:
             login(request, user)
-            return Response({"message": "Login successful"}, status=status.HTTP_200_OK)
-        return Response({"message": "Invalid credentials"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"message": "Login successful"},
+                status=status.HTTP_200_OK
+            )
+        return Response(
+            {"message": "Invalid credentials"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
 
 
-# Base views for all models
 class BaseListView(ListView):
     template_name = 'generic_list.html'
 
 
 class BaseCreateView(CreateView):
     template_name = 'generic_form.html'
-    success_url = reverse_lazy('role_list')  # Adjust default redirect
+    success_url = reverse_lazy('role_list')
 
 
 class BaseUpdateView(UpdateView):
